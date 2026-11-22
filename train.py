@@ -15,6 +15,8 @@ Notes:
 - On CUDA GPU: ~20-40 min for 25 epochs. On CPU: plan for hours.
 - If pip cannot find a CUDA torch build for your Python version, install
   Python 3.12/3.13 alongside and train with it.
+- workers=0: Windows dataloader workers are fragile and can die mid-epoch;
+  single-process loading is slightly slower and never crashes.
 """
 
 import argparse
@@ -116,6 +118,7 @@ def main():
         project="runs",
         name="mobtrain",
         exist_ok=True,
+        workers=0,   # Windows: single-process loading, immune to worker crashes
     )
 
     best = find_best_pt()
