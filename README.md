@@ -43,6 +43,8 @@ Every stage is timed and written to telemetry, so you can see where the millisec
 
 Dry run is the default in config.json: it logs decisions to logs/telemetry.csv and does NOT click. Only flip dry_run to false in a world you own.
 
+Hate the terminal? Double-click **build_exe.bat** once and you get **dist/BabyJev.exe**, no Python window needed ever again. Details in [docs/BUILD_EXE.md](docs/BUILD_EXE.md).
+
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md). Short version:
