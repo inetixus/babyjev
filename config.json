@@ -1,0 +1,10 @@
+{
+  "dry_run": true,
+  "capture_region_ratio": 0.25,
+  "trigger_radius_px": 12,
+  "min_bbox_height_px": 40,
+  "attack_cooldown_s": 1.6,
+  "max_cps": 8,
+  "jitter_ms": 8,
+  "telemetry_csv": "logs/telemetry.csv"
+}

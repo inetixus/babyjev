@@ -1,0 +1,10 @@
+# Phase 0 + 1
+mss>=9.0
+dxcam>=0.0.5
+numpy>=1.26
+opencv-python>=4.10
+pynput>=1.7.6
+
+# Phase 2 (uncomment when you get there)
+# torch>=2.4
+# ultralytics>=8.3
