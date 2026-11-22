@@ -77,6 +77,8 @@ class ScreenSource:
         w = int(sw * region_ratio)
         h = int(sh * region_ratio)
         self.region = ((sw - w) // 2, (sh - h) // 2, (sw + w) // 2, (sh + h) // 2)
+        # Frame geometry is known from the region itself: (height, width).
+        self.shape = (h, w)
         self._cam = None
         self._sct = None
         try:
@@ -87,7 +89,6 @@ class ScreenSource:
             import mss
             self._sct = mss.mss()
             self.backend = "mss"
-        self.shape = None
 
     def grab(self):
         t0 = time.perf_counter()
@@ -101,8 +102,6 @@ class ScreenSource:
         dt = (time.perf_counter() - t0) * 1000.0
         if frame is None:
             return None, dt
-        if self.shape is None:
-            self.shape = frame.shape[:2]
         return frame, dt
 
 
@@ -153,7 +152,7 @@ class DecisionLoop:
         self.detector = detector
         self.actuator = actuator
         self.next_attack_allowed = 0.0
-        self.source_shape = (480, 640)
+        self.source_shape = None
         self.stats = {"frames": 0, "detections": 0, "clicks": 0, "totals": []}
         self.csv_path = Path(csv_path)
         Path("logs").mkdir(exist_ok=True)
@@ -163,10 +162,10 @@ class DecisionLoop:
 
     def decide(self, detection):
         """The Jev moment. Three checks, no narration."""
+        if self.source_shape is None or detection is None:
+            return None
         h, w = self.source_shape
         centre_x, centre_y = w / 2.0, h / 2.0
-        if detection is None:
-            return None
         offset = ((detection.cx - centre_x) ** 2 + (detection.cy - centre_y) ** 2) ** 0.5
         if offset > self.cfg["trigger_radius_px"]:
             return None
@@ -180,13 +179,17 @@ class DecisionLoop:
         return "fire"
 
     def run(self, source, seconds=None):
-        self.source_shape = source.shape
+        # Trust the source's declared shape; never clobber a good fallback.
+        if source.shape:
+            self.source_shape = source.shape
         t_end = time.perf_counter() + seconds if seconds else None
         try:
             while True:
                 frame, capture_ms = source.grab()
                 if frame is None:
                     continue
+                if self.source_shape is None:
+                    self.source_shape = frame.shape[:2]
                 t0 = time.perf_counter()
                 detection = self.detector.detect(frame)
                 decide_in = time.perf_counter()
