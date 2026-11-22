@@ -1,12 +1,15 @@
 """
-BabyJev - Phase 1 skeleton: capture -> detect -> decide -> act -> telemetry.
+BabyJev: capture -> detect -> decide -> act -> telemetry.
 
 Defaults to DRY RUN: it logs decisions instead of clicking. Flip dry_run in
 config.json ONLY for singleplayer or private worlds you own. Never point this
 at public servers; the point is learning, not outcomes.
 
-Self-test mode needs no game at all:
-    python triggerbot.py --self-test
+Modes:
+    python triggerbot.py --self-test         # synthetic frames, no game
+    python triggerbot.py --dry-run           # live capture, logged, never clicks
+    python triggerbot.py                     # fighting mode: your worlds only
+Eyes need training first: python train.py   (creates weights/babyjev_mobs.pt)
 """
 
 import argparse
@@ -17,6 +20,11 @@ import statistics
 import time
 from dataclasses import dataclass
 from pathlib import Path
+
+try:
+    from yolo_detector import YoloDetector
+except ImportError:
+    YoloDetector = None  # ultralytics not needed for self-test / stub modes
 
 
 # ---------------------------------------------------------------- detection
@@ -47,20 +55,10 @@ class BrightBlobDetector:
 
 
 class HeuristicDetector:
-    """PHASE 1 TODO. Swap the body of detect() with your experiment.
-
-    Ideas to try, cheapest first:
-      1. Nametag strip: scan for the dark translucent nametag rectangle near
-         the top of the center region, then measure its height for range.
-      2. Mob palette: hostile mobs have narrow, distinctive color clusters
-         (zombie blue/green, skeleton grey/white). Count pixels within a
-         palette distance threshold around the crosshair.
-      3. If detection is flaky, save frames to disk while playing and label
-         them by hand: that dataset is also your Phase 2 YOLO training set.
-    """
+    """Placeholder from Phase 1. Kept for reference; Phase 2 uses YoloDetector
+    once train.py has produced weights/babyjev_mobs.pt."""
 
     def detect(self, frame):
-        # TODO Phase 1: return Detection(cx, cy, h, confidence) or None
         return None
 
 
@@ -77,8 +75,7 @@ class ScreenSource:
         w = int(sw * region_ratio)
         h = int(sh * region_ratio)
         self.region = ((sw - w) // 2, (sh - h) // 2, (sw + w) // 2, (sh + h) // 2)
-        # Frame geometry is known from the region itself: (height, width).
-        self.shape = (h, w)
+        self.shape = (h, w)  # known from the region, no first frame needed
         self._cam = None
         self._sct = None
         try:
@@ -179,7 +176,6 @@ class DecisionLoop:
         return "fire"
 
     def run(self, source, seconds=None):
-        # Trust the source's declared shape; never clobber a good fallback.
         if source.shape:
             self.source_shape = source.shape
         t_end = time.perf_counter() + seconds if seconds else None
@@ -236,25 +232,40 @@ class DecisionLoop:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="BabyJev Phase 1 loop")
+    ap = argparse.ArgumentParser(description="BabyJev reflex loop")
     ap.add_argument("--self-test", action="store_true", help="synthetic frames, no game")
     ap.add_argument("--dry-run", action="store_true", help="force dry run (also config default)")
     ap.add_argument("--seconds", type=float, default=None, help="stop after N seconds")
+    ap.add_argument("--weights", default=None, help="path to YOLO weights (default: config)")
     args = ap.parse_args()
 
     cfg = json.loads(Path("config.json").read_text())
     if args.dry_run:
         cfg["dry_run"] = True
 
+    weights = args.weights or cfg.get("yolo_weights", "")
+    have_weights = bool(weights) and Path(weights).exists()
+
     if args.self_test:
         source = SelfTestSource()
         detector = BrightBlobDetector()
         print("Self-test: synthetic frames, full loop, dry-run clicks only.")
+    elif have_weights and YoloDetector is not None:
+        source = ScreenSource(cfg["capture_region_ratio"])
+        detector = YoloDetector(
+            weights=weights,
+            target_classes=cfg.get("target_classes"),
+            conf=cfg.get("yolo_conf", 0.55),
+            imgsz=cfg.get("yolo_imgsz", 320),
+        )
+        print("Live capture via", source.backend, "with trained eyes.")
     else:
         source = ScreenSource(cfg["capture_region_ratio"])
         detector = HeuristicDetector()
-        print("Live capture via", source.backend, "- Phase 1 detector is a stub,")
-        print("so expect zero detections until you fill in HeuristicDetector.detect().")
+        print("Live capture via", source.backend, "- no trained eyes found.")
+        if weights:
+            print("Missing weights file:", weights)
+        print("Train them once with: python train.py")
 
     actuator = Actuator(dry_run=cfg["dry_run"], jitter_ms=cfg["jitter_ms"])
     loop = DecisionLoop(cfg, detector, actuator, cfg["telemetry_csv"])

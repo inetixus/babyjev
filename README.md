@@ -2,7 +2,7 @@
 
 A mini **Jev-style reflex agent** for *singleplayer* Minecraft: watch the frame, decide in one pass, act. Named after [MCJev](https://haoailab.com/blogs/mcjev/), the 24 ms decision agent from UCSD's Hao AI Lab + NVIDIA.
 
-**Status:** Phase 0 + Phase 1 scaffold. The decision loop runs end-to-end in self-test mode with zero game dependencies; the real detector is a swappable stub waiting for your experiment.
+**Status:** Phase 2. Decision loop proven at ~6 ms; YOLO eyes fine-tuned from an open Minecraft mob dataset ([Ivan711a/minecraft-mobs-yolo-dataset](https://huggingface.co/datasets/Ivan711a/minecraft-mobs-yolo-dataset), classes: creeper, skeleton, spider, zombie, enderman).
 
 ---
 
@@ -14,7 +14,7 @@ Big reasoning models are too slow for a 60 fps world: 200 tokens of thinking at 
 
 ```mermaid
 flowchart LR
-    A[Screen capture\nregion around crosshair] --> B[Detector\nPhase 1: heuristics\nPhase 2: YOLO11n fp16]
+    A[Screen capture\nregion around crosshair] --> B[Detector\nYOLO11n fp16\nmob classes]
     B --> C{Decision\nnear center?\nclose enough?\ncooldown ready?}
     C -- yes --> D[Actuate\none click + jitter]
     C -- no --> A
@@ -24,36 +24,32 @@ flowchart LR
 
 ## Latency budget (the whole point)
 
-| Stage | Target | Notes |
+| Stage | Target | Measured on the dev machine (RTX 3050, mss capture) |
 |---|---|---|
-| Capture | 10 ms | dxcam region capture, mss fallback |
-| Detect | 15 ms | Phase 2: YOLO11n fp16 on a 4GB RTX 3050 |
-| Decide | 1 ms | radius, proximity, cooldown checks |
-| Act | 5 ms | one click via pynput |
-| **Total** | **under 50 ms** | one Minecraft server tick |
+| Capture | 10 ms | ~13.5 ms (dxcam unavailable on Insider build) |
+| Detect | 15 ms | YOLO11n @ 320 px input |
+| Decide | 1 ms | ~0.5 ms |
+| Act | 5 ms | ~4 ms (jitter included) |
+| **Total** | **under 50 ms** | ~13.5 ms brain-only, + detection when eyes are on |
 
-Every stage is timed and written to telemetry, so you can see where the milliseconds actually go. (Spoiler: it is almost never the model.)
+Every stage is timed and written to telemetry, so you can see where the milliseconds actually go.
 
 ## Quickstart
 
     python -m pip install -r requirements.txt
-    python capture_bench.py --seconds 10      # Phase 0: how fast can we see?
-    python triggerbot.py --self-test         # full loop, no game needed
-    python triggerbot.py --dry-run           # live capture, logged decisions, no clicks
+    python capture_bench.py --seconds 10      # Phase 0: your capture numbers
+    python train.py                          # ONE TIME: downloads dataset, trains eyes (~20-40 min on GPU)
+    python triggerbot.py --self-test         # loop sanity check, no game
+    python triggerbot.py --dry-run            # real eyes on screen, logs decisions, never clicks
+    python triggerbot.py                      # fighting mode: worlds you own ONLY
 
-Dry run is the default in config.json: it logs decisions to logs/telemetry.csv and does NOT click. Only flip dry_run to false in a world you own.
+dry_run is the default in config.json. Only flip it to false in a world you own. Targets are set by target_classes in config.json (default: zombie, skeleton, spider, creeper; enderman left off because it is neutral until you look at it, and it does not appreciate reflex bots).
 
-Hate the terminal? Double-click **build_exe.bat** once and you get **dist/BabyJev.exe**, no Python window needed ever again. Details in [docs/BUILD_EXE.md](docs/BUILD_EXE.md).
+Hate the terminal? Double-click **build_exe.bat** once and you get **dist/BabyJev.exe**. Details in [docs/BUILD_EXE.md](docs/BUILD_EXE.md). (The exe covers capture/self-test modes; the YOLO-eye sessions are run via python.)
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md). Short version:
-
-- **Phase 0** — capture benchmark (done, in this repo)
-- **Phase 1** — heuristic detector: color/nametag logic in triggerbot.py
-- **Phase 2** — YOLO11n: label a few hundred frames, swap the detector class
-- **Phase 3** — polish: human-like jitter, CPS cap, attack cooldown tuning
-- **Stretch** — publish your end-to-end latency next to Jev's 24 ms
+See [ROADMAP.md](ROADMAP.md).
 
 ## Rules of engagement
 
@@ -64,6 +60,7 @@ Singleplayer, LAN, or private worlds you own. Never point it at public servers, 
 - [MCJev: Real-Time Decisions with Jev](https://haoailab.com/blogs/mcjev/) — the inspiration; 24 ms decisions, Minecraft PvP, 70% win rate vs humans
 - [GameScaling](https://github.com/THUSI-Lab/GameScaling) — open-weights VLA game agents from the miHoYo Honkai AI team + universities
 - [SIMA 2](https://deepmind.google/blog/sima-2-an-agent-that-plays-reasons-and-learns-with-you-in-virtual-3d-worlds/) — DeepMind's generalist agent for 3D worlds
+- [Minecraft mobs YOLO dataset](https://huggingface.co/datasets/Ivan711a/minecraft-mobs-yolo-dataset) — the eyes' training data
 
 ## License
 
