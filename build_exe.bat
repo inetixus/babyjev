@@ -1,6 +1,6 @@
 @echo off
 REM BabyJev: build a single-file exe.
-REM Run this once on your Windows machine. Output lands in dist\triggerbot.exe
+REM Run this once on your Windows machine. Output lands in dist\BabyJev.exe
 REM Keep config.json next to the exe (that is where it reads settings from).
 
 setlocal
@@ -22,8 +22,8 @@ python -m PyInstaller --onefile --name BabyJev --clean --noconfirm triggerbot.py
 
 echo [3/3] Done.
 echo.
-echo    dist\BabyJev.exe      <- your program
-echo    copy config.json next to it, then run it.
+echo    Your program: dist\BabyJev.exe
+echo    Copy config.json next to it, then run it.
 echo    First run may take a few seconds (self-extracting), that is normal.
 echo.
 echo    Try:  dist\BabyJev.exe --self-test
