@@ -7,16 +7,15 @@ YOLO11n on your machine, and installs the result as weights/babyjev_mobs.pt.
 
 You run this ONCE:
     python train.py                 # auto device (GPU if available)
-    python train.py --device cpu    # force CPU (slow: hours)
-    python train.py --epochs 15     # quicker, still decent
+    python train.py --batch 4       # if you get GPU memory errors
+    python train.py --no-amp        # fallback for native crashes (0xC0000005)
+    python train.py --device cpu    # last resort (slow: hours)
 
 Notes:
 - First run downloads the dataset (once) and yolo11n.pt (once).
-- On CUDA GPU: ~20-40 min for 25 epochs. On CPU: plan for hours.
-- If pip cannot find a CUDA torch build for your Python version, install
-  Python 3.12/3.13 alongside and train with it.
-- workers=0: Windows dataloader workers are fragile and can die mid-epoch;
-  single-process loading is slightly slower and never crashes.
+- Close GPU-heavy apps (games, recorders, browsers) before training on a 4GB card.
+- workers=0: Windows dataloader workers are fragile; single process is slower
+  but never crashes.
 """
 
 import argparse
@@ -100,7 +99,12 @@ def main():
     ap.add_argument("--batch", type=int, default=8)
     ap.add_argument("--imgsz", type=int, default=640)
     ap.add_argument("--device", default=None, help="0 for GPU, cpu, or empty for auto")
+    ap.add_argument("--no-amp", action="store_true",
+                    help="disable mixed precision (fallback for 0xC0000005 crashes)")
     args = ap.parse_args()
+
+    if args.no_amp:
+        print("[amp] disabled by request: slower but native-crash-proof")
 
     root = ensure_dataset()
     data_yaml = write_data_yaml(root)
@@ -118,7 +122,8 @@ def main():
         project="runs",
         name="mobtrain",
         exist_ok=True,
-        workers=0,   # Windows: single-process loading, immune to worker crashes
+        workers=0,        # Windows: single-process loading, immune to worker crashes
+        amp=not args.no_amp,
     )
 
     best = find_best_pt()
