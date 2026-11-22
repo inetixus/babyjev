@@ -12,9 +12,9 @@ You run this ONCE:
 
 Notes:
 - First run downloads the dataset (once) and yolo11n.pt (once).
-- On a 4GB GPU: ~20-40 min for 25 epochs. On CPU: plan for hours.
-- If pip cannot find a torch build for your Python version (3.15 is very
-  new), install Python 3.12/3.13 alongside and run training with it.
+- On CUDA GPU: ~20-40 min for 25 epochs. On CPU: plan for hours.
+- If pip cannot find a CUDA torch build for your Python version, install
+  Python 3.12/3.13 alongside and train with it.
 """
 
 import argparse
@@ -70,6 +70,28 @@ def auto_device():
     return "cpu"
 
 
+def find_best_pt() -> Path:
+    """Ultralytics decides on its own where 'runs' lands (cwd or user dir),
+    so we check every place it could be and take the freshest match."""
+    candidates = [
+        Path("runs") / "mobtrain" / "weights" / "best.pt",
+        Path.cwd() / "runs" / "detect" / "runs" / "mobtrain" / "weights" / "best.pt",
+        Path.home() / "runs" / "detect" / "runs" / "mobtrain" / "weights" / "best.pt",
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    seen = []
+    for root in (Path.cwd() / "runs", Path.home() / "runs"):
+        if root.exists():
+            seen.extend(root.glob("**/mobtrain/weights/best.pt"))
+    if seen:
+        return max(seen, key=lambda p: p.stat().st_mtime)
+    raise SystemExit("Training finished but best.pt was not found anywhere. Look for a "
+                     "folder named mobtrain with a weights subfolder, and copy its "
+                     "best.pt to weights/babyjev_mobs.pt by hand.")
+
+
 def main():
     ap = argparse.ArgumentParser(description="Train BabyJev's eyes (run once)")
     ap.add_argument("--epochs", type=int, default=25)
@@ -96,14 +118,13 @@ def main():
         exist_ok=True,
     )
 
-    best = Path("runs") / "mobtrain" / "weights" / "best.pt"
-    if not best.exists():
-        raise SystemExit("Training finished but best.pt was not found; check runs/mobtrain/")
+    best = find_best_pt()
     WEIGHTS_DIR.mkdir(exist_ok=True)
     shutil.copy(str(best), str(WEIGHTS_OUT))
     print()
     print("=== BabyJev has eyes ===")
-    print("weights:", WEIGHTS_OUT)
+    print("weights source:", best)
+    print("installed as:", WEIGHTS_OUT)
     print("classes:", CLASSES)
     print()
     print("next: python triggerbot.py --dry-run")
